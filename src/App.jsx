@@ -9,8 +9,8 @@ function App() {
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-blue-400 mb-2">MP4 Uploader</h1>
-          <p className="text-gray-400">Upload your MP4 files to Make.com webhook</p>
+          <h1 className="text-3xl font-bold text-blue-400 mb-2">Video & Audio Uploader</h1>
+          <p className="text-gray-400">Upload MP4/MOV videos and we'll extract the MP3 audio</p>
         </header>
 
         {uploadStatus && (
@@ -26,7 +26,7 @@ function App() {
         />
 
         <footer className="mt-12 text-center text-sm text-gray-500">
-          <p>This application sends data to a Make.com webhook for further processing.</p>
+          <p>This application extracts MP3 audio from video files and sends both to a Make.com webhook.</p>
         </footer>
       </div>
     </div>

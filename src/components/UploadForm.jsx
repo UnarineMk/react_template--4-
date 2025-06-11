@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FormInput from './FormInput';
 import { validateEmail, validateName } from '../utils/validation';
 import { uploadToMakeWebhook } from '../utils/fileUpload';
+import { convertVideoToMP3, isMediaConversionSupported } from '../utils/mediaConverter';
 
 function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
   const [formData, setFormData] = useState({
@@ -17,6 +18,19 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
     email: '',
     file: ''
   });
+  
+  const [conversionSupported, setConversionSupported] = useState(true);
+  const [conversionStatus, setConversionStatus] = useState(null);
+  
+  // Check if browser supports the required APIs for media conversion
+  useEffect(() => {
+    const supported = isMediaConversionSupported();
+    setConversionSupported(supported);
+    
+    if (!supported) {
+      console.warn('Media conversion not supported in this browser');
+    }
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -45,10 +59,11 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
       return;
     }
     
-    if (file.type !== 'video/mp4') {
+    const validTypes = ['video/mp4', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
       setErrors({
         ...errors,
-        file: 'Only MP4 files are allowed'
+        file: 'Only MP4 and MOV files are allowed'
       });
       return;
     }
@@ -70,6 +85,12 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
       ...errors,
       file: ''
     });
+    
+    if (!conversionSupported) {
+      setConversionStatus('Your browser does not support audio extraction. You can still upload the video file.');
+    } else {
+      setConversionStatus(null);
+    }
   };
 
   const validateForm = () => {
@@ -92,7 +113,7 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
     }
 
     if (!formData.file) {
-      newErrors.file = 'Please select an MP4 file';
+      newErrors.file = 'Please select an MP4 or MOV file';
       isValid = false;
     }
 
@@ -111,10 +132,50 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
     setUploadStatus(null);
 
     try {
-      const result = await uploadToMakeWebhook(formData);
+      // Set initial conversion status
+      setConversionStatus('Converting video to MP3...');
+      
+      let audioFile;
+      
+      // Convert video to MP3 if the browser supports it
+      if (conversionSupported && formData.file) {
+        try {
+          audioFile = await convertVideoToMP3(formData.file);
+          setConversionStatus('Audio extraction successful!');
+        } catch (conversionError) {
+          console.error('Audio conversion error:', conversionError);
+          setConversionStatus(`Audio extraction failed: ${conversionError.message}`);
+          
+          // If conversion fails but we still have the original file, continue with upload
+          if (!audioFile) {
+            // Create an empty audio file as a fallback
+            const emptyBlob = new Blob([], { type: 'audio/mpeg' });
+            const fileName = formData.file.name.replace(/\.(mp4|mov)$/i, '.mp3');
+            audioFile = new File([emptyBlob], fileName, { type: 'audio/mpeg' });
+          }
+        }
+      } else {
+        // Create an empty audio file as a fallback for unsupported browsers
+        const emptyBlob = new Blob([], { type: 'audio/mpeg' });
+        const fileName = formData.file.name.replace(/\.(mp4|mov)$/i, '.mp3');
+        audioFile = new File([emptyBlob], fileName, { type: 'audio/mpeg' });
+      }
+      
+      // Prepare the upload data
+      const uploadData = {
+        name: formData.name,
+        surname: formData.surname,
+        email: formData.email,
+        originalFile: formData.file,
+        audioFile: audioFile
+      };
+      
+      // Upload both files
+      const result = await uploadToMakeWebhook(uploadData);
+      
       setUploadStatus({ 
         error: false,
-        message: 'File uploaded successfully!'
+        message: 'Files uploaded successfully!'
       });
       
       // Reset form after successful upload
@@ -124,6 +185,9 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
         email: '',
         file: null
       });
+      
+      // Reset conversion status
+      setConversionStatus(null);
       
       // Reset file input
       document.getElementById('file').value = '';
@@ -178,18 +242,30 @@ function UploadForm({ isUploading, setIsUploading, setUploadStatus }) {
 
       <div className="mb-4">
         <label htmlFor="file" className="block text-gray-300 text-sm font-medium mb-2">
-          MP4 File
+          Video File (MP4/MOV)
         </label>
         <input
           id="file"
           name="file"
           type="file"
-          accept="video/mp4"
+          accept="video/mp4,video/quicktime"
           onChange={handleFileChange}
           className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
         {errors.file && <p className="mt-1 text-sm text-red-400">{errors.file}</p>}
+        
+        {conversionStatus && (
+          <div className={`mt-2 p-2 rounded text-sm ${conversionStatus.includes('failed') ? 'bg-red-900/50 text-red-200' : 'bg-blue-900/50 text-blue-200'}`}>
+            {conversionStatus}
+          </div>
+        )}
+        
+        {!conversionSupported && (
+          <p className="mt-1 text-sm text-yellow-400">
+            Your browser doesn't support audio extraction, but you can still upload the video file.
+          </p>
+        )}
       </div>
 
       <button

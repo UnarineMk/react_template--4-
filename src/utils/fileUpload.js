@@ -1,22 +1,23 @@
 /**
- * Upload the form data (user details and file) to the Make.com webhook
+ * Upload the form data (user details and multiple files) to the Make.com webhook
  * 
- * @param {Object} formData - Object containing name, surname, email and file
+ * @param {Object} formData - Object containing name, surname, email, originalFile and audioFile
  * @returns {Promise} - Resolves when upload is complete
  */
 export const uploadToMakeWebhook = async (formData) => {
-  const { name, surname, email, file } = formData;
+  const { name, surname, email, originalFile, audioFile } = formData;
   
-  if (!file || !name || !surname || !email) {
+  if (!originalFile || !audioFile || !name || !surname || !email) {
     throw new Error('Missing required form data');
   }
 
-  // Create a FormData object to send the file and user details
+  // Create a FormData object to send the files and user details
   const data = new FormData();
   data.append('name', name);
   data.append('surname', surname);
   data.append('email', email);
-  data.append('file', file);
+  data.append('originalFile', originalFile); // Original video file (MP4 or MOV)
+  data.append('audioFile', audioFile);  // Extracted audio file (MP3)
 
   try {
     // Make.com webhook URL
@@ -35,9 +36,9 @@ export const uploadToMakeWebhook = async (formData) => {
     }
 
     // Return success without parsing JSON since Make.com might respond with plain text
-    return { success: true, message: 'Upload successful' };
+    return { success: true, message: 'Files uploaded successfully' };
   } catch (error) {
-    console.error('Error uploading file:', error);
-    throw new Error(error.message || 'Failed to upload file. Please try again.');
+    console.error('Error uploading files:', error);
+    throw new Error(error.message || 'Failed to upload files. Please try again.');
   }
 };
